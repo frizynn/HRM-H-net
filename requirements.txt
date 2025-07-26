@@ -1,11 +1,35 @@
+# Core ML libraries
 torch
-adam-atan2
-einops
-tqdm
-coolname
+torchvision
+numpy
+
+# Dataset and data processing
+datasets
+huggingface-hub
+
+# Configuration and utilities
+pyyaml
 pydantic
 argdantic
+
+# Training utilities
 wandb
-omegaconf
+tqdm
 hydra-core
-huggingface_hub
+omegaconf
+
+# Custom optimizers
+adam-atan2
+
+# Development tools
+coolname>=1.1.0
+
+# Additional dependencies
+einops
+
+# FSDP and QLoRA dependencies
+bitsandbytes>=0.41.0
+transformers>=4.36.0
+accelerate>=0.24.0
+peft>=0.7.0
+hqq>=0.1.0 

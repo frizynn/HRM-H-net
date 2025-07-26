@@ -1,0 +1,38 @@
+# Text Language Model Training Configuration
+
+# Architecture
+arch:
+  name: "models.text_language_model.TextHRM_v1"
+  loss:
+    name: "models.text_language_model.TextLanguageModelHead"
+    vocab_size: 32000
+
+# Data
+data_path: "data/text-tiny"
+
+# Hyperparameters
+global_batch_size: 32
+epochs: 10
+
+lr: 1e-4
+lr_min_ratio: 0.1
+lr_warmup_steps: 1000
+
+weight_decay: 0.01
+beta1: 0.9
+beta2: 0.999
+
+# Puzzle embedding
+puzzle_emb_lr: 1e-4
+puzzle_emb_weight_decay: 0.01
+
+# Names
+project_name: "Text-LLM-HRM"
+run_name: null  # Will be auto-generated
+checkpoint_path: null  # Will be auto-generated
+
+# Extras
+seed: 42
+checkpoint_every_eval: true
+eval_interval: 2
+eval_save_outputs: ["logits", "predictions"] 
