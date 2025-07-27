@@ -20,7 +20,7 @@ cli = ArgParser()
 
 class TextDataProcessConfig(BaseModel):
     # Dataset configuration
-    dataset_name: str = "wikitext"  # Public dataset that doesn't require authentication
+    dataset_name: str = "wikitext"  # Public dataset: wikitext-2-raw-v1
     dataset_split: str = "train"
     output_dir: str = "data/text-tiny"
     
@@ -118,22 +118,24 @@ def convert_text_dataset(config: TextDataProcessConfig):
     
     # Load dataset from Hugging Face
     try:
-        dataset = load_dataset(config.dataset_name, split=config.dataset_split)
+        # Load wikitext with specific configuration
+        dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split=config.dataset_split)
+        print("Using dataset: wikitext-2-raw-v1")
     except Exception as e:
-        print(f"Error loading dataset: {e}")
+        print(f"Error loading wikitext dataset: {e}")
         print("Trying alternative dataset...")
         # Try alternative dataset if the first one fails
         try:
-            dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
-            print("Using alternative dataset: wikitext-2-raw-v1")
+            dataset = load_dataset("bookcorpus", split="train")
+            print("Using alternative dataset: bookcorpus")
         except Exception as e2:
-            print(f"Error loading alternative dataset: {e2}")
+            print(f"Error loading bookcorpus dataset: {e2}")
             # Try another public dataset
             try:
-                dataset = load_dataset("bookcorpus", split="train")
-                print("Using alternative dataset: bookcorpus")
+                dataset = load_dataset("c4", "en", split="train")
+                print("Using alternative dataset: c4-en")
             except Exception as e3:
-                print(f"Error loading bookcorpus dataset: {e3}")
+                print(f"Error loading c4 dataset: {e3}")
                 raise Exception("Could not load any text dataset")
     
     # Check if dataset has length (not all datasets support len())
