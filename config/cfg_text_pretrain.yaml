@@ -6,6 +6,18 @@ arch:
   loss:
     name: "text_language_model@TextLanguageModelHead"
     vocab_size: 32000
+  
+  # HRM Model Configuration
+  H_cycles: 4
+  L_cycles: 8
+  H_layers: 2
+  L_layers: 4
+  hidden_size: 512
+  expansion: 4.0
+  num_heads: 8
+  pos_encodings: "learned"
+  halt_max_steps: 16
+  halt_exploration_prob: 0.1
 
 # Data
 data_path: "data/text-tiny"
