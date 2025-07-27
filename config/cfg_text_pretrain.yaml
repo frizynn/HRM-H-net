@@ -6,6 +6,7 @@ arch:
   loss:
     name: "text_language_model@TextLanguageModelHead"
     vocab_size: 32000
+    hidden_size: 512
   
   # HRM Model Configuration
   H_cycles: 4
