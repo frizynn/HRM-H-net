@@ -5,27 +5,28 @@ arch:
   name: "text_language_model@TextHRM_v1"
   loss:
     name: "text_language_model@TextLanguageModelHead"
-    vocab_size: 32000
-    hidden_size: 512
+    vocab_size: 8000
+    hidden_size: 256
   
-  # HRM Model Configuration
-  H_cycles: 4
-  L_cycles: 8
-  H_layers: 2
-  L_layers: 4
-  hidden_size: 512
-  expansion: 4.0
-  num_heads: 8
+  # HRM Model Configuration - Lighter version
+  H_cycles: 2
+  L_cycles: 4
+  H_layers: 1
+  L_layers: 2
+  hidden_size: 256
+  expansion: 2.0
+  num_heads: 4
   pos_encodings: "learned"
   halt_max_steps: 16
   halt_exploration_prob: 0.1
+  forward_dtype: "bfloat16"
 
 # Data
 data_path: "data/text-tiny"
 
 # Hyperparameters
-global_batch_size: 32
-epochs: 10
+global_batch_size: 16
+epochs: 5
 
 lr: 1e-4
 lr_min_ratio: 0.1

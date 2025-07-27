@@ -178,40 +178,129 @@ def text_launch(config_dict: dict):
     # Initialize model and training state using custom text model creation
     model, optimizers, optimizer_lrs = create_text_model(config_dict, train_metadata, world_size=WORLD_SIZE)
     
-    # Training loop (simplified version)
+    # Check GPU usage
+    device = next(model.parameters()).device
+    print(f"Model is on device: {device}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+    
+    # Training loop with detailed logging
     model.train()
     
     # Initialize carry state
     carry = None
     
+    # Training statistics
+    train_losses = []
+    eval_losses = []
+    
     for epoch in range(config_dict['epochs']):
+        print(f"\n{'='*50}")
         print(f"Epoch {epoch + 1}/{config_dict['epochs']}")
+        print(f"{'='*50}")
+        
+        # Training phase
+        model.train()
+        epoch_train_losses = []
         
         for batch_idx, batch in enumerate(train_loader):
-            # Move batch to GPU
-            batch = {k: v.cuda() for k, v in batch.items()}
-            
-            # Initialize carry if it's None
-            if carry is None:
-                carry = model.initial_carry(batch)
-            
-            # Forward pass
-            carry, loss, metrics, predictions, all_finished = model(carry, batch, return_keys=[])
-            
-            # Backward pass
-            loss.backward()
-            
-            # Update weights
-            for optimizer in optimizers:
-                optimizer.step()
-                optimizer.zero_grad()
-            
-            # Print progress
-            if batch_idx % 10 == 0:
-                loss_value = loss.item() if hasattr(loss, 'item') else float(loss)
-                print(f"  Batch {batch_idx}, Loss: {loss_value:.4f}")
+            try:
+                # Move batch to GPU
+                batch = {k: v.cuda() for k, v in batch.items()}
+                
+                # Initialize carry if it's None
+                if carry is None:
+                    carry = model.initial_carry(batch)
+                
+                # Forward pass
+                carry, loss, metrics, predictions, all_finished = model(carry, batch, return_keys=[])
+                
+                # Backward pass
+                loss.backward()
+                
+                # Update weights
+                for optimizer in optimizers:
+                    optimizer.step()
+                    optimizer.zero_grad()
+                
+                # Store loss
+                loss_value = float(loss.detach().cpu())
+                epoch_train_losses.append(loss_value)
+                
+                # Print progress
+                if batch_idx % 5 == 0:
+                    avg_loss = sum(epoch_train_losses[-10:]) / min(len(epoch_train_losses), 10)
+                    print(f"  Train Batch {batch_idx:3d}, Loss: {loss_value:.4f}, Avg Loss: {avg_loss:.4f}")
+                    
+            except Exception as e:
+                print(f"Error in training batch {batch_idx}: {e}")
+                continue
+        
+        # Calculate average training loss for this epoch
+        avg_train_loss = sum(epoch_train_losses) / len(epoch_train_losses) if epoch_train_losses else 0
+        train_losses.append(avg_train_loss)
+        
+        # Evaluation phase
+        model.eval()
+        epoch_eval_losses = []
+        
+        print(f"\nEvaluating...")
+        with torch.no_grad():
+            eval_carry = None
+            for batch_idx, batch in enumerate(eval_loader):
+                try:
+                    # Move batch to GPU
+                    batch = {k: v.cuda() for k, v in batch.items()}
+                    
+                    # Initialize carry if it's None
+                    if eval_carry is None:
+                        eval_carry = model.initial_carry(batch)
+                    
+                    # Forward pass
+                    eval_carry, loss, metrics, predictions, all_finished = model(eval_carry, batch, return_keys=[])
+                    
+                    # Store loss
+                    loss_value = float(loss.detach().cpu())
+                    epoch_eval_losses.append(loss_value)
+                    
+                    # Print progress
+                    if batch_idx % 5 == 0:
+                        print(f"  Eval Batch {batch_idx:3d}, Loss: {loss_value:.4f}")
+                        
+                except Exception as e:
+                    print(f"Error in evaluation batch {batch_idx}: {e}")
+                    continue
+        
+        # Calculate average evaluation loss for this epoch
+        avg_eval_loss = sum(epoch_eval_losses) / len(epoch_eval_losses) if epoch_eval_losses else 0
+        eval_losses.append(avg_eval_loss)
+        
+        # Print epoch summary
+        print(f"\nEpoch {epoch + 1} Summary:")
+        print(f"  Train Loss: {avg_train_loss:.4f}")
+        print(f"  Eval Loss:  {avg_eval_loss:.4f}")
+        print(f"  Train/Eval Ratio: {avg_train_loss/avg_eval_loss:.2f}" if avg_eval_loss > 0 else "  Train/Eval Ratio: N/A")
+        
+        # Memory usage
+        if torch.cuda.is_available():
+            memory_allocated = torch.cuda.memory_allocated(0) / 1e9
+            memory_reserved = torch.cuda.memory_reserved(0) / 1e9
+            print(f"  GPU Memory: {memory_allocated:.2f}GB allocated, {memory_reserved:.2f}GB reserved")
     
-    print("Text training completed!")
+    # Final summary
+    print(f"\n{'='*50}")
+    print("Training completed!")
+    print(f"{'='*50}")
+    print(f"Final Train Loss: {train_losses[-1]:.4f}")
+    print(f"Final Eval Loss:  {eval_losses[-1]:.4f}")
+    print(f"Best Train Loss:  {min(train_losses):.4f}")
+    print(f"Best Eval Loss:   {min(eval_losses):.4f}")
+    
+    if torch.cuda.is_available():
+        memory_allocated = torch.cuda.memory_allocated(0) / 1e9
+        print(f"Final GPU Memory: {memory_allocated:.2f}GB")
 
 
 def train_model(config_path: str = "config/cfg_text_pretrain.yaml"):

@@ -16,8 +16,8 @@ class TextLanguageModelHead(nn.Module):
         self.model = model
         self.vocab_size = vocab_size
         
-        # Language modeling head
-        self.lm_head = nn.Linear(hidden_size, vocab_size)
+        # Language modeling head - use bfloat16 for efficiency
+        self.lm_head = nn.Linear(hidden_size, vocab_size, dtype=torch.bfloat16)
         
         # Initialize weights
         self.apply(self._init_weights)
@@ -64,8 +64,9 @@ class TextLanguageModelHead(nn.Module):
         else:
             raise ValueError(f"Unexpected hidden_states shape: {hidden_states.shape}")
         
-        # Apply language modeling head
-        logits = self.lm_head(hidden_states)  # [batch_size, seq_len, vocab_size]
+        # Apply language modeling head - use bfloat16 for efficiency
+        hidden_states_bfloat16 = hidden_states.to(torch.bfloat16)
+        logits = self.lm_head(hidden_states_bfloat16)  # [batch_size, seq_len, vocab_size]
         
         # Compute loss
         loss = self._compute_loss(logits, labels)
@@ -118,6 +119,7 @@ class TextHRM_v1(HRM_ACT_v1):
             "num_puzzle_identifiers": 1,  # Minimal value since we don't use puzzle embeddings
             "batch_size": config.get("global_batch_size", 32),
             "seq_len": config.get("max_seq_len", 512),
+            "forward_dtype": "bfloat16",  # Use bfloat16 for efficiency
         })
         
         super().__init__(text_config)
