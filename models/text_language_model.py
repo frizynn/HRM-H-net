@@ -52,6 +52,18 @@ class TextLanguageModelHead(nn.Module):
         # Forward through base model
         carry, hidden_states, metrics, preds, all_finished = self.model(carry, batch, return_keys)  # type: ignore
         
+        # Ensure hidden_states has the correct shape [batch_size, seq_len, hidden_size]
+        if hidden_states.dim() == 2:
+            # If hidden_states is [batch_size * seq_len, hidden_size], reshape it
+            batch_size = inputs.size(0)
+            seq_len = inputs.size(1)
+            hidden_states = hidden_states.view(batch_size, seq_len, -1)
+        elif hidden_states.dim() == 3:
+            # Already in correct shape [batch_size, seq_len, hidden_size]
+            pass
+        else:
+            raise ValueError(f"Unexpected hidden_states shape: {hidden_states.shape}")
+        
         # Apply language modeling head
         logits = self.lm_head(hidden_states)  # [batch_size, seq_len, vocab_size]
         
@@ -147,10 +159,16 @@ class TextHRM_v1(HRM_ACT_v1):
         # Process through HRM layers
         carry, outputs = super().forward(carry, batch)  # type: ignore
         
-        # Extract hidden states and other outputs
-        hidden_states = outputs.get("logits", carry.inner_carry.z_H)  # Use z_H as hidden states
+        # Extract hidden states from the carry state (z_H contains the final hidden states)
+        hidden_states = carry.inner_carry.z_H  # [batch_size, seq_len, hidden_size]
+        
+        # Create metrics
         metrics = {}
+        
+        # Create predictions
         preds = outputs
-        all_finished = torch.tensor(True)  # Default to finished
+        
+        # All sequences are finished for text generation
+        all_finished = torch.tensor(True, device=hidden_states.device)
         
         return carry, hidden_states, metrics, preds, all_finished 
