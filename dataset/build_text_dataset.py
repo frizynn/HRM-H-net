@@ -121,8 +121,14 @@ def convert_text_dataset(config: TextDataProcessConfig):
         dataset = load_dataset(config.dataset_name, split=config.dataset_split)
     except Exception as e:
         print(f"Error loading dataset: {e}")
-        print("Trying with ignore_verifications=True...")
-        dataset = load_dataset(config.dataset_name, split=config.dataset_split, ignore_verifications=True)
+        print("Trying alternative dataset...")
+        # Try alternative dataset if the first one fails
+        try:
+            dataset = load_dataset("nampdn-ai/mini-en", split="train")
+            print("Using alternative dataset: nampdn-ai/mini-en")
+        except Exception as e2:
+            print(f"Error loading alternative dataset: {e2}")
+            raise Exception("Could not load any text dataset")
     
     # Check if dataset has length (not all datasets support len())
     dataset_length = None
