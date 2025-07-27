@@ -12,7 +12,7 @@ from argdantic import ArgParser
 from pydantic import BaseModel
 from datasets import load_dataset
 
-from .common import PuzzleDatasetMetadata
+from dataset.common import PuzzleDatasetMetadata
 
 
 cli = ArgParser()

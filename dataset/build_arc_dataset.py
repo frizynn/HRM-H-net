@@ -10,7 +10,7 @@ from glob import glob
 from argdantic import ArgParser
 from pydantic import BaseModel
 
-from .common import PuzzleDatasetMetadata, dihedral_transform
+from dataset.common import PuzzleDatasetMetadata, dihedral_transform
 
 
 cli = ArgParser()
