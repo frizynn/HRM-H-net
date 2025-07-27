@@ -196,6 +196,13 @@ def text_launch(config_dict: dict):
     train_losses = []
     eval_losses = []
     
+    # Learning rate scheduler for smoother training
+    from torch.optim.lr_scheduler import CosineAnnealingLR
+    scheduler = CosineAnnealingLR(optimizers[0], T_max=len(train_loader) * config_dict['epochs'], eta_min=config_dict['lr'] * 0.01)
+    
+    # Gradient clipping to prevent exploding gradients
+    max_grad_norm = 1.0
+    
     for epoch in range(config_dict['epochs']):
         print(f"\n{'='*50}")
         print(f"Epoch {epoch + 1}/{config_dict['epochs']}")
@@ -220,10 +227,16 @@ def text_launch(config_dict: dict):
                 # Backward pass
                 loss.backward()
                 
+                # Gradient clipping to prevent exploding gradients
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                
                 # Update weights
                 for optimizer in optimizers:
                     optimizer.step()
                     optimizer.zero_grad()
+                
+                # Update learning rate scheduler
+                scheduler.step()
                 
                 # Store loss
                 loss_value = float(loss.detach().cpu())
@@ -232,7 +245,8 @@ def text_launch(config_dict: dict):
                 # Print progress
                 if batch_idx % 5 == 0:
                     avg_loss = sum(epoch_train_losses[-10:]) / min(len(epoch_train_losses), 10)
-                    print(f"  Train Batch {batch_idx:3d}, Loss: {loss_value:.4f}, Avg Loss: {avg_loss:.4f}")
+                    current_lr = scheduler.get_last_lr()[0]
+                    print(f"  Train Batch {batch_idx:3d}, Loss: {loss_value:.4f}, Avg Loss: {avg_loss:.4f}, LR: {current_lr:.2e}")
                     
             except Exception as e:
                 print(f"Error in training batch {batch_idx}: {e}")

@@ -16,7 +16,8 @@ class TextLanguageModelHead(nn.Module):
         self.model = model
         self.vocab_size = vocab_size
         
-        # Language modeling head - use bfloat16 for efficiency
+        # Language modeling head - use bfloat16 for efficiency with layer norm
+        self.layer_norm = nn.LayerNorm(hidden_size, dtype=torch.bfloat16)
         self.lm_head = nn.Linear(hidden_size, vocab_size, dtype=torch.bfloat16)
         
         # Initialize weights
@@ -64,9 +65,10 @@ class TextLanguageModelHead(nn.Module):
         else:
             raise ValueError(f"Unexpected hidden_states shape: {hidden_states.shape}")
         
-        # Apply language modeling head - use bfloat16 for efficiency
+        # Apply language modeling head - use bfloat16 for efficiency with normalization
         hidden_states_bfloat16 = hidden_states.to(torch.bfloat16)
-        logits = self.lm_head(hidden_states_bfloat16)  # [batch_size, seq_len, vocab_size]
+        normalized_states = self.layer_norm(hidden_states_bfloat16)
+        logits = self.lm_head(normalized_states)  # [batch_size, seq_len, vocab_size]
         
         # Compute loss
         loss = self._compute_loss(logits, labels)

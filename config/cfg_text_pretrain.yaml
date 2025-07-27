@@ -28,13 +28,13 @@ data_path: "data/text-tiny"
 global_batch_size: 16
 epochs: 5
 
-lr: 1e-4
-lr_min_ratio: 0.1
-lr_warmup_steps: 1000
+lr: 5e-5  # Learning rate más bajo para reducir oscilaciones
+lr_min_ratio: 0.01  # Ratio mínimo más bajo
+lr_warmup_steps: 500  # Menos pasos de warmup
 
-weight_decay: 0.01
+weight_decay: 0.001  # Weight decay más bajo para estabilidad
 beta1: 0.9
-beta2: 0.999
+beta2: 0.99  # Beta2 más bajo para reducir oscilaciones
 
 # Puzzle embedding
 puzzle_emb_lr: 1e-4
