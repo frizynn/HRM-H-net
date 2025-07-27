@@ -180,14 +180,23 @@ def text_launch(config_dict: dict):
     
     # Training loop (simplified version)
     model.train()
+    
+    # Initialize carry state
+    carry = None
+    
     for epoch in range(config_dict['epochs']):
-        for batch in train_loader:
+        print(f"Epoch {epoch + 1}/{config_dict['epochs']}")
+        
+        for batch_idx, batch in enumerate(train_loader):
             # Move batch to GPU
             batch = {k: v.cuda() for k, v in batch.items()}
             
+            # Initialize carry if it's None
+            if carry is None:
+                carry = model.initial_carry(batch)
+            
             # Forward pass
-            outputs = model(batch)
-            loss = outputs['loss']
+            carry, loss, metrics, predictions, all_finished = model(carry, batch, return_keys=[])
             
             # Backward pass
             loss.backward()
@@ -196,6 +205,11 @@ def text_launch(config_dict: dict):
             for optimizer in optimizers:
                 optimizer.step()
                 optimizer.zero_grad()
+            
+            # Print progress
+            if batch_idx % 10 == 0:
+                loss_value = loss.item() if hasattr(loss, 'item') else float(loss)
+                print(f"  Batch {batch_idx}, Loss: {loss_value:.4f}")
     
     print("Text training completed!")
 
