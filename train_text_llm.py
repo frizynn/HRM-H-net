@@ -17,6 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from dataset.build_text_dataset import TextDataProcessConfig, convert_text_dataset
 from pretrain import launch
+from hydra_zen import launch as hydra_zen_launch
+from omegaconf import DictConfig
 
 
 def build_dataset(config_path: str = "config/cfg_text_pretrain.yaml"):
@@ -49,9 +51,19 @@ def train_model(config_path: str = "config/cfg_text_pretrain.yaml"):
     # Set environment variables for training
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Use first GPU
     
-    # Launch training using the existing pretrain.py
-    # modify the config to use our text-specific settings
-    launch(config_path)
+    # Load config and create a proper config object
+    with open(config_path, 'r') as f:
+        config_dict = yaml.safe_load(f)
+    
+    # Use hydra_zen.launch with the config dictionary
+    result = hydra_zen_launch(
+        config_dict,
+        launch,
+        overrides=[]
+    )
+    
+    print(f"Training completed. Results saved to: {result.working_dir}")
+    return result
 
 
 def main():

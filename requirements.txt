@@ -16,6 +16,7 @@ argdantic
 wandb
 tqdm
 hydra-core
+hydra-zen
 omegaconf
 common
 # Custom optimizers
