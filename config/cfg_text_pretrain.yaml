@@ -2,9 +2,9 @@
 
 # Architecture
 arch:
-  name: "models.text_language_model.TextHRM_v1"
+  name: "text_language_model@TextHRM_v1"
   loss:
-    name: "models.text_language_model.TextLanguageModelHead"
+    name: "text_language_model@TextLanguageModelHead"
     vocab_size: 32000
 
 # Data
