@@ -20,7 +20,7 @@ cli = ArgParser()
 
 class TextDataProcessConfig(BaseModel):
     # Dataset configuration
-    dataset_name: str = "PrimeIntellect/c4-tiny"  # or "nampdn-ai/mini-en"
+    dataset_name: str = "wikitext"  # Public dataset that doesn't require authentication
     dataset_split: str = "train"
     output_dir: str = "data/text-tiny"
     
@@ -124,11 +124,17 @@ def convert_text_dataset(config: TextDataProcessConfig):
         print("Trying alternative dataset...")
         # Try alternative dataset if the first one fails
         try:
-            dataset = load_dataset("nampdn-ai/mini-en", split="train")
-            print("Using alternative dataset: nampdn-ai/mini-en")
+            dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
+            print("Using alternative dataset: wikitext-2-raw-v1")
         except Exception as e2:
             print(f"Error loading alternative dataset: {e2}")
-            raise Exception("Could not load any text dataset")
+            # Try another public dataset
+            try:
+                dataset = load_dataset("bookcorpus", split="train")
+                print("Using alternative dataset: bookcorpus")
+            except Exception as e3:
+                print(f"Error loading bookcorpus dataset: {e3}")
+                raise Exception("Could not load any text dataset")
     
     # Check if dataset has length (not all datasets support len())
     dataset_length = None
