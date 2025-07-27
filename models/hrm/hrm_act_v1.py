@@ -247,6 +247,20 @@ class HierarchicalReasoningModel_ACTV1(nn.Module):
         )
         
     def forward(self, carry: HierarchicalReasoningModel_ACTV1Carry, batch: Dict[str, torch.Tensor]) -> Tuple[HierarchicalReasoningModel_ACTV1Carry, Dict[str, torch.Tensor]]:
+        # Get current batch size
+        current_batch_size = batch["inputs"].shape[0]
+        
+        # If batch size changed, we need to adjust the carry
+        if current_batch_size != carry.halted.shape[0]:
+            # Create new carry with correct batch size
+            device = batch["inputs"].device
+            carry = HierarchicalReasoningModel_ACTV1Carry(
+                inner_carry=self.inner.empty_carry(current_batch_size),
+                steps=torch.zeros((current_batch_size, ), dtype=torch.int32, device=device),
+                halted=torch.ones((current_batch_size, ), dtype=torch.bool, device=device),
+                current_data={k: torch.empty_like(v) for k, v in batch.items()}
+            )
+        
         # Update data, carry (removing halted sequences)
         new_inner_carry = self.inner.reset_carry(carry.halted, carry.inner_carry)
         

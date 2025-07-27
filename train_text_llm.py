@@ -69,7 +69,8 @@ def create_text_dataloader(config_dict: dict, split: str, rank: int, world_size:
         batch_size=config_dict['global_batch_size'] // world_size,
         shuffle=(split == "train"),
         num_workers=1,
-        pin_memory=True
+        pin_memory=True,
+        drop_last=True  # Drop incomplete batches to avoid size mismatches
     )
     
     return dataloader, dataset.metadata
