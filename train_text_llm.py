@@ -19,6 +19,60 @@ from dataset.build_text_dataset import TextDataProcessConfig, convert_text_datas
 from pretrain import launch
 from hydra_zen import launch as hydra_zen_launch
 from omegaconf import DictConfig
+import torch
+from torch.utils.data import DataLoader
+import numpy as np
+import json
+from dataset.common import PuzzleDatasetMetadata
+
+
+class TextDataset(torch.utils.data.Dataset):
+    """Text dataset compatible with the HRM training system"""
+    
+    def __init__(self, data_path: str, split: str = "train"):
+        self.data_path = data_path
+        self.split = split
+        
+        # Load metadata
+        with open(os.path.join(data_path, split, "dataset.json"), "r") as f:
+            self.metadata = PuzzleDatasetMetadata(**json.load(f))
+        
+        # Load data
+        self.inputs = np.load(os.path.join(data_path, split, "text__inputs.npy"))
+        self.labels = np.load(os.path.join(data_path, split, "text__labels.npy"))
+        self.puzzle_identifiers = np.load(os.path.join(data_path, split, "text__puzzle_identifiers.npy"))
+        self.puzzle_indices = np.load(os.path.join(data_path, split, "text__puzzle_indices.npy"))
+        self.group_indices = np.load(os.path.join(data_path, split, "text__group_indices.npy"))
+    
+    def __len__(self):
+        return len(self.inputs)
+    
+    def __getitem__(self, idx):
+        return {
+            "inputs": torch.tensor(self.inputs[idx], dtype=torch.long),
+            "labels": torch.tensor(self.labels[idx], dtype=torch.long),
+            "puzzle_identifiers": torch.tensor(self.puzzle_identifiers[idx], dtype=torch.long),
+            "puzzle_indices": torch.tensor(self.puzzle_indices, dtype=torch.long),
+            "group_indices": torch.tensor(self.group_indices, dtype=torch.long)
+        }
+
+
+def create_text_dataloader(config_dict: dict, split: str, rank: int, world_size: int, **kwargs):
+    """Create dataloader for text dataset"""
+    dataset = TextDataset(
+        data_path=config_dict['data_path'],
+        split=split
+    )
+    
+    dataloader = DataLoader(
+        dataset,
+        batch_size=config_dict['global_batch_size'] // world_size,
+        shuffle=(split == "train"),
+        num_workers=1,
+        pin_memory=True
+    )
+    
+    return dataloader, dataset.metadata
 
 
 def build_dataset(config_path: str = "config/cfg_text_pretrain.yaml"):
@@ -44,6 +98,60 @@ def build_dataset(config_path: str = "config/cfg_text_pretrain.yaml"):
     print(f"Dataset built successfully at {config['data_path']}")
 
 
+def text_launch(config_dict: dict):
+    """Custom launch function for text training"""
+    from pretrain import create_model, init_train_state, train_batch, evaluate, save_train_state, compute_lr, PretrainConfig
+    import torch.distributed as dist
+    import wandb
+    import tqdm
+    import math
+    
+    # Initialize distributed training
+    RANK = 0
+    WORLD_SIZE = 1
+    
+    if "LOCAL_RANK" in os.environ:
+        dist.init_process_group(backend="nccl")
+        RANK = dist.get_rank()
+        WORLD_SIZE = dist.get_world_size()
+        torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
+    
+    # Convert dict to PretrainConfig
+    config = PretrainConfig(**config_dict)
+    
+    # Create dataloaders using text dataset
+    train_loader, train_metadata = create_text_dataloader(
+        config_dict, "train", rank=RANK, world_size=WORLD_SIZE
+    )
+    eval_loader, eval_metadata = create_text_dataloader(
+        config_dict, "test", rank=RANK, world_size=WORLD_SIZE
+    )
+    
+    # Initialize model and training state
+    model, optimizers, optimizer_lrs = create_model(config, train_metadata, world_size=WORLD_SIZE)
+    
+    # Training loop (simplified version)
+    model.train()
+    for epoch in range(config_dict['epochs']):
+        for batch in train_loader:
+            # Move batch to GPU
+            batch = {k: v.cuda() for k, v in batch.items()}
+            
+            # Forward pass
+            outputs = model(batch)
+            loss = outputs['loss']
+            
+            # Backward pass
+            loss.backward()
+            
+            # Update weights
+            for optimizer in optimizers:
+                optimizer.step()
+                optimizer.zero_grad()
+    
+    print("Text training completed!")
+
+
 def train_model(config_path: str = "config/cfg_text_pretrain.yaml"):
     """Train the text language model"""
     print("Starting text LLM training...")
@@ -55,15 +163,10 @@ def train_model(config_path: str = "config/cfg_text_pretrain.yaml"):
     with open(config_path, 'r') as f:
         config_dict = yaml.safe_load(f)
     
-    # Use hydra_zen.launch with the config dictionary
-    result = hydra_zen_launch(
-        config_dict,
-        launch,
-        overrides=[]
-    )
+    # Use custom text launch function
+    text_launch(config_dict)
     
-    print(f"Training completed. Results saved to: {result.working_dir}")
-    return result
+    print("Training completed!")
 
 
 def main():
