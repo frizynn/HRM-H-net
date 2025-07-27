@@ -98,9 +98,57 @@ def build_dataset(config_path: str = "config/cfg_text_pretrain.yaml"):
     print(f"Dataset built successfully at {config['data_path']}")
 
 
+def create_text_model(config_dict: dict, train_metadata, world_size: int):
+    """Create model specifically for text training without puzzle embeddings"""
+    from pretrain import load_model_class
+    import torch.distributed as dist
+    import torch.nn as nn
+    
+    model_cfg = dict(
+        **config_dict['arch'],
+        batch_size=config_dict['global_batch_size'] // world_size,
+        vocab_size=train_metadata.vocab_size,
+        seq_len=train_metadata.seq_len,
+        num_puzzle_identifiers=1,  # Minimal value for text models
+        puzzle_emb_ndim=0,  # No puzzle embeddings for text
+        causal=False  # Non-autoregressive
+    )
+
+    # Instantiate model with loss head
+    model_cls = load_model_class(config_dict['arch']['name'])
+    loss_head_cls = load_model_class(config_dict['arch']['loss']['name'])
+
+    with torch.device("cuda"):
+        model: nn.Module = model_cls(model_cfg)
+        model = loss_head_cls(model, **config_dict['arch']['loss'])
+        if "DISABLE_COMPILE" not in os.environ:
+            model = torch.compile(model, dynamic=False)  # type: ignore
+
+        # Broadcast parameters from rank 0
+        if world_size > 1:
+            with torch.no_grad():
+                for param in list(model.parameters()) + list(model.buffers()):
+                    dist.broadcast(param, src=0)
+
+    # Optimizers and lr - only use Adam for text models (no puzzle embeddings)
+    optimizers = [
+        torch.optim.Adam(
+            model.parameters(),
+            lr=0,  # Needs to be set by scheduler
+            weight_decay=config_dict['weight_decay'],
+            betas=(config_dict['beta1'], config_dict['beta2'])
+        )
+    ]
+    optimizer_lrs = [
+        config_dict['lr']
+    ]
+
+    return model, optimizers, optimizer_lrs
+
+
 def text_launch(config_dict: dict):
     """Custom launch function for text training"""
-    from pretrain import create_model, init_train_state, train_batch, evaluate, save_train_state, compute_lr, PretrainConfig
+    from pretrain import init_train_state, train_batch, evaluate, save_train_state, compute_lr, PretrainConfig
     import torch.distributed as dist
     import wandb
     import tqdm
@@ -127,8 +175,8 @@ def text_launch(config_dict: dict):
         config_dict, "test", rank=RANK, world_size=WORLD_SIZE
     )
     
-    # Initialize model and training state
-    model, optimizers, optimizer_lrs = create_model(config, train_metadata, world_size=WORLD_SIZE)
+    # Initialize model and training state using custom text model creation
+    model, optimizers, optimizer_lrs = create_text_model(config_dict, train_metadata, world_size=WORLD_SIZE)
     
     # Training loop (simplified version)
     model.train()

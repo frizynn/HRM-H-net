@@ -99,15 +99,32 @@ class TextHRM_v1(HRM_ACT_v1):
     """Text-specific HRM model for language modeling"""
     
     def __init__(self, config: Dict[str, Any]):
-        # Adapt config for text
+        # Adapt config for text - ensure puzzle_emb_ndim is 0 for text models
         text_config = config.copy()
         text_config.update({
-            "input_dim": config.get("vocab_size", 32000),
-            "output_dim": config.get("vocab_size", 32000),
-            "causal": True,  # Enable causal attention for language modeling
+            "puzzle_emb_ndim": 0,  # No puzzle embeddings for text
+            "num_puzzle_identifiers": 1,  # Minimal value since we don't use puzzle embeddings
+            "batch_size": config.get("global_batch_size", 32),
+            "seq_len": config.get("max_seq_len", 512),
         })
         
         super().__init__(text_config)
+    
+    @property
+    def puzzle_emb(self):
+        """Override puzzle_emb to return a dummy sparse embedding for text models"""
+        # Return a dummy sparse embedding that has buffers() method
+        # This is needed for compatibility with the optimizer
+        if not hasattr(self, '_dummy_puzzle_emb'):
+            from models.sparse_embedding import CastedSparseEmbedding
+            self._dummy_puzzle_emb = CastedSparseEmbedding(
+                num_embeddings=1,
+                embedding_dim=1,
+                batch_size=1,
+                init_std=0.0,
+                cast_to=torch.float32
+            )
+        return self._dummy_puzzle_emb
     
     def forward(self, carry: Any, batch: Dict[str, Tensor], return_keys: Optional[List[str]] = None) -> tuple:
         """
@@ -123,16 +140,15 @@ class TextHRM_v1(HRM_ACT_v1):
         Returns:
             tuple: (new_carry, hidden_states, metrics, predictions, all_finished)
         """
-        inputs = batch["inputs"]
-        
-        # Convert token ids to embeddings
-        embeddings = self.input_embedding(inputs)  # type: ignore # [batch_size, seq_len, hidden_size]
+        # Add dummy puzzle_identifiers if not present
+        if "puzzle_identifiers" not in batch:
+            batch["puzzle_identifiers"] = torch.zeros(batch["inputs"].shape[0], dtype=torch.long, device=batch["inputs"].device)
         
         # Process through HRM layers
-        carry, outputs = super().forward(carry, {"inputs": embeddings})  # type: ignore
+        carry, outputs = super().forward(carry, batch)  # type: ignore
         
         # Extract hidden states and other outputs
-        hidden_states = outputs.get("logits", embeddings)  # Use logits as hidden states
+        hidden_states = outputs.get("logits", carry.inner_carry.z_H)  # Use z_H as hidden states
         metrics = {}
         preds = outputs
         all_finished = torch.tensor(True)  # Default to finished
